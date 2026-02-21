@@ -1,5 +1,6 @@
 // Configuration du jeu
 const config = {
+    version: 'v1.5',  // Version du jeu
     width: 800,
     height: 400,
     gravity: 1,
@@ -80,6 +81,12 @@ function loadImages() {
 function init() {
     game.canvas = document.getElementById('gameCanvas');
     game.ctx = game.canvas.getContext('2d');
+    
+    // Afficher la version dans les instructions
+    const versionDisplay = document.getElementById('versionDisplay');
+    if (versionDisplay) {
+        versionDisplay.textContent = `Build ${config.version} - ${new Date().toLocaleDateString('fr-FR')}`;
+    }
     
     // Adapter au viewport mobile
     resizeCanvas();
@@ -504,7 +511,13 @@ function draw() {
     const timeLeft = Math.max(0, config.gameDuration - elapsed);
     ctx.fillText(`Temps : ${timeLeft}s`, config.width - 210, 35);
     
+    // Version en bas à droite
+    ctx.font = '16px Arial';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.fillText(config.version, config.width - 60, config.height - 10);
+    
     if (!game.gameOver) {
+        ctx.fillStyle = 'white';
         ctx.font = 'bold 24px Arial';
         ctx.fillText('Touche l\'écran : Sauter', 10, 65);
         
