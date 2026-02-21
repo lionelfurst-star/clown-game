@@ -141,30 +141,22 @@ function setupControls() {
         if (e.code === 'ArrowRight') game.keys.right = false;
     });
     
-    // Gyroscope
-    if (window.DeviceOrientationEvent) {
-        // iOS 13+ nécessite une permission
-        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-            // On demandera la permission au premier tap
-        } else {
-            // Android ou iOS plus ancien
-            enableGyroscope();
-        }
-    }
-    
-    // Tactile
+    // Tactile - demander permission gyroscope sur iOS dès le premier tap
     game.canvas.addEventListener('touchstart', (e) => {
         e.preventDefault();
         
-        // Demander permission gyroscope sur iOS au premier tap
+        // Demander permission gyroscope sur iOS 13+ au premier tap
         if (typeof DeviceOrientationEvent.requestPermission === 'function' && !game.gyro.enabled) {
             DeviceOrientationEvent.requestPermission()
                 .then(response => {
+                    console.log('Permission gyroscope:', response);
                     if (response === 'granted') {
                         enableGyroscope();
                     }
                 })
-                .catch(console.error);
+                .catch(err => {
+                    console.error('Erreur permission gyroscope:', err);
+                });
         }
         
         if (game.clown.onGround && game.isRunning && !game.gameOver) {
@@ -182,15 +174,27 @@ function setupControls() {
             resetGame();
         }
     });
+    
+    // Activer gyroscope automatiquement sur Android
+    if (window.DeviceOrientationEvent) {
+        if (typeof DeviceOrientationEvent.requestPermission !== 'function') {
+            // Android ou iOS ancien - pas besoin de permission
+            enableGyroscope();
+        }
+    }
 }
 
 function enableGyroscope() {
+    console.log('Activation du gyroscope...');
     window.addEventListener('deviceorientation', (e) => {
         // gamma : inclinaison gauche/droite (-90 à 90)
         // Négatif = penché à gauche, Positif = penché à droite
         if (e.gamma !== null) {
             game.gyro.tilt = e.gamma;
-            game.gyro.enabled = true;
+            if (!game.gyro.enabled) {
+                game.gyro.enabled = true;
+                console.log('Gyroscope actif! Tilt:', e.gamma);
+            }
         }
     });
 }
@@ -450,6 +454,12 @@ function draw() {
     if (!game.gameOver) {
         ctx.font = 'bold 24px Arial';
         ctx.fillText('Touche l\'écran : Sauter', 10, 65);
+        
+        // Indicateur gyroscope
+        if (game.gyro.enabled) {
+            ctx.fillStyle = '#00ff00';
+            ctx.fillText(`🎮 Gyro: ${Math.round(game.gyro.tilt)}°`, 10, 95);
+        }
     }
     
     // Game Over
