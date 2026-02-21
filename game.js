@@ -91,7 +91,7 @@ function init() {
 }
 
 function resizeCanvas() {
-    const container = document.getElementById('gameContainer');
+    // Dimensions exactes disponibles
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
     
@@ -111,8 +111,13 @@ function resizeCanvas() {
         newHeight = newWidth / gameRatio;
     }
     
+    // Applique les dimensions calculées
     game.canvas.style.width = newWidth + 'px';
     game.canvas.style.height = newHeight + 'px';
+    
+    // Force le recalcul sur iOS
+    game.canvas.width = config.width;
+    game.canvas.height = config.height;
 }
 
 function setupControls() {
