@@ -40,7 +40,9 @@ let game = {
     
     gyro: {
         enabled: false,
-        tilt: 0  // angle d'inclinaison
+        tilt: 0,  // angle d'inclinaison
+        isLandscape: true,  // Mode paysage par défaut
+        permissionRequested: false
     },
     
     images: {},
@@ -141,23 +143,9 @@ function setupControls() {
         if (e.code === 'ArrowRight') game.keys.right = false;
     });
     
-    // Tactile - demander permission gyroscope sur iOS dès le premier tap
+    // Tactile pour sauter / rejouer
     game.canvas.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        
-        // Demander permission gyroscope sur iOS 13+ au premier tap
-        if (typeof DeviceOrientationEvent.requestPermission === 'function' && !game.gyro.enabled) {
-            DeviceOrientationEvent.requestPermission()
-                .then(response => {
-                    console.log('Permission gyroscope:', response);
-                    if (response === 'granted') {
-                        enableGyroscope();
-                    }
-                })
-                .catch(err => {
-                    console.error('Erreur permission gyroscope:', err);
-                });
-        }
         
         if (game.clown.onGround && game.isRunning && !game.gameOver) {
             jump();
@@ -175,35 +163,100 @@ function setupControls() {
         }
     });
     
-    // Activer gyroscope automatiquement sur Android
-    if (window.DeviceOrientationEvent) {
-        if (typeof DeviceOrientationEvent.requestPermission !== 'function') {
-            // Android ou iOS ancien - pas besoin de permission
-            enableGyroscope();
-        }
+    // Activer gyroscope automatiquement sur Android/ancien iOS
+    if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission !== 'function') {
+        console.log('🤖 Plateforme sans permission requise - activation gyroscope');
+        enableGyroscope();
     }
 }
 
 function enableGyroscope() {
-    console.log('Activation du gyroscope...');
+    console.log('🎮 Tentative activation gyroscope...');
+    
+    // Détection orientation (paysage vs portrait)
+    const updateOrientation = () => {
+        game.gyro.isLandscape = window.innerWidth > window.innerHeight;
+        console.log('Orientation:', game.gyro.isLandscape ? 'Paysage' : 'Portrait');
+    };
+    
+    updateOrientation();
+    window.addEventListener('resize', updateOrientation);
+    
     window.addEventListener('deviceorientation', (e) => {
-        // gamma : inclinaison gauche/droite (-90 à 90)
-        // Négatif = penché à gauche, Positif = penché à droite
-        if (e.gamma !== null) {
-            game.gyro.tilt = e.gamma;
+        // En mode paysage (iPad horizontal) : utiliser beta (-180 à 180)
+        // En mode portrait (iPad vertical) : utiliser gamma (-90 à 90)
+        const angle = game.gyro.isLandscape ? e.beta : e.gamma;
+        
+        if (angle !== null && angle !== undefined) {
+            // Normaliser beta pour être dans la même plage que gamma
+            if (game.gyro.isLandscape) {
+                // beta va de -180 à 180, on le ramène à -90/90
+                if (e.beta > 90) {
+                    game.gyro.tilt = 180 - e.beta;
+                } else if (e.beta < -90) {
+                    game.gyro.tilt = -180 - e.beta;
+                } else {
+                    game.gyro.tilt = e.beta;
+                }
+            } else {
+                game.gyro.tilt = angle;
+            }
+            
             if (!game.gyro.enabled) {
                 game.gyro.enabled = true;
-                console.log('Gyroscope actif! Tilt:', e.gamma);
+                console.log('✅ Gyroscope actif!', {
+                    orientation: game.gyro.isLandscape ? 'Paysage' : 'Portrait',
+                    beta: e.beta,
+                    gamma: e.gamma,
+                    tilt: game.gyro.tilt
+                });
             }
+        } else {
+            console.warn('⚠️ Gyroscope ne retourne pas de données');
         }
-    });
+    }, true);
 }
 
 function startGame() {
-    document.getElementById('instructions').classList.add('hidden');
-    game.isRunning = true;
-    game.startTime = Date.now();
-    gameLoop();
+    // Demander permission gyroscope sur iOS 13+ AVANT de cacher les instructions
+    if (typeof DeviceOrientationEvent.requestPermission === 'function' && !game.gyro.permissionRequested) {
+        game.gyro.permissionRequested = true;
+        console.log('📱 Demande permission iOS...');
+        
+        DeviceOrientationEvent.requestPermission()
+            .then(response => {
+                console.log('📱 Réponse permission:', response);
+                if (response === 'granted') {
+                    enableGyroscope();
+                    console.log('✅ Permission accordée');
+                } else {
+                    console.warn('❌ Permission refusée');
+                }
+                // Démarrer le jeu dans tous les cas
+                document.getElementById('instructions').classList.add('hidden');
+                game.isRunning = true;
+                game.startTime = Date.now();
+                gameLoop();
+            })
+            .catch(err => {
+                console.error('❌ Erreur permission:', err);
+                // Démarrer quand même
+                document.getElementById('instructions').classList.add('hidden');
+                game.isRunning = true;
+                game.startTime = Date.now();
+                gameLoop();
+            });
+    } else {
+        // Pas iOS 13+ ou déjà demandé
+        if (!game.gyro.enabled && typeof DeviceOrientationEvent.requestPermission !== 'function') {
+            console.log('🤖 Android/ancien iOS - activation directe');
+            enableGyroscope();
+        }
+        document.getElementById('instructions').classList.add('hidden');
+        game.isRunning = true;
+        game.startTime = Date.now();
+        gameLoop();
+    }
 }
 
 function resetGame() {
@@ -458,7 +511,11 @@ function draw() {
         // Indicateur gyroscope
         if (game.gyro.enabled) {
             ctx.fillStyle = '#00ff00';
-            ctx.fillText(`🎮 Gyro: ${Math.round(game.gyro.tilt)}°`, 10, 95);
+            const mode = game.gyro.isLandscape ? 'Paysage' : 'Portrait';
+            ctx.fillText(`🎮 Gyro ON (${mode}): ${Math.round(game.gyro.tilt)}°`, 10, 95);
+        } else {
+            ctx.fillStyle = '#ff6666';
+            ctx.fillText('🎮 Gyro OFF', 10, 95);
         }
     }
     
