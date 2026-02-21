@@ -92,13 +92,27 @@ function init() {
 
 function resizeCanvas() {
     const container = document.getElementById('gameContainer');
-    const maxWidth = window.innerWidth - 40;
-    const maxHeight = window.innerHeight - 40;
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
     
-    const scale = Math.min(maxWidth / config.width, maxHeight / config.height, 1);
+    // Ratio du jeu (800x400 = 2:1)
+    const gameRatio = config.width / config.height;
+    const windowRatio = windowWidth / windowHeight;
     
-    game.canvas.style.width = (config.width * scale) + 'px';
-    game.canvas.style.height = (config.height * scale) + 'px';
+    let newWidth, newHeight;
+    
+    if (windowRatio > gameRatio) {
+        // Fenêtre plus large : on se base sur la hauteur
+        newHeight = windowHeight;
+        newWidth = newHeight * gameRatio;
+    } else {
+        // Fenêtre plus haute : on se base sur la largeur
+        newWidth = windowWidth;
+        newHeight = newWidth / gameRatio;
+    }
+    
+    game.canvas.style.width = newWidth + 'px';
+    game.canvas.style.height = newHeight + 'px';
 }
 
 function setupControls() {
