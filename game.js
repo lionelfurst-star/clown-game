@@ -38,6 +38,11 @@ let game = {
         space: false
     },
     
+    gyro: {
+        enabled: false,
+        tilt: 0  // angle d'inclinaison
+    },
+    
     images: {},
     imagesLoaded: 0
 };
@@ -117,9 +122,32 @@ function setupControls() {
         if (e.code === 'ArrowRight') game.keys.right = false;
     });
     
+    // Gyroscope
+    if (window.DeviceOrientationEvent) {
+        // iOS 13+ nécessite une permission
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+            // On demandera la permission au premier tap
+        } else {
+            // Android ou iOS plus ancien
+            enableGyroscope();
+        }
+    }
+    
     // Tactile
     game.canvas.addEventListener('touchstart', (e) => {
         e.preventDefault();
+        
+        // Demander permission gyroscope sur iOS au premier tap
+        if (typeof DeviceOrientationEvent.requestPermission === 'function' && !game.gyro.enabled) {
+            DeviceOrientationEvent.requestPermission()
+                .then(response => {
+                    if (response === 'granted') {
+                        enableGyroscope();
+                    }
+                })
+                .catch(console.error);
+        }
+        
         if (game.clown.onGround && game.isRunning && !game.gameOver) {
             jump();
         } else if (game.gameOver) {
@@ -133,6 +161,17 @@ function setupControls() {
             jump();
         } else if (game.gameOver) {
             resetGame();
+        }
+    });
+}
+
+function enableGyroscope() {
+    window.addEventListener('deviceorientation', (e) => {
+        // gamma : inclinaison gauche/droite (-90 à 90)
+        // Négatif = penché à gauche, Positif = penché à droite
+        if (e.gamma !== null) {
+            game.gyro.tilt = e.gamma;
+            game.gyro.enabled = true;
         }
     });
 }
@@ -194,6 +233,29 @@ function update() {
     if (game.keys.right) {
         game.clown.x += 7;
     }
+    
+    // Déplacement au gyroscope (iPad incliné)
+    if (game.gyro.enabled) {
+        // gamma entre -90 et 90
+        // On utilise une zone morte de ±10° pour éviter le drift
+        const deadZone = 10;
+        let tilt = game.gyro.tilt;
+        
+        if (Math.abs(tilt) > deadZone) {
+            // Normaliser l'angle (retirer la zone morte)
+            if (tilt > 0) {
+                tilt = tilt - deadZone;
+            } else {
+                tilt = tilt + deadZone;
+            }
+            
+            // Vitesse proportionnelle à l'inclinaison (max ±15 px/frame)
+            const maxTilt = 80 - deadZone;  // 80° max après zone morte
+            const speed = (tilt / maxTilt) * 15;
+            game.clown.x += speed;
+        }
+    }
+    
     game.clown.x = Math.max(0, Math.min(config.width - config.clownSize.w, game.clown.x));
     
     // Gravité clown
